@@ -1,0 +1,10 @@
+data/
+checkpoints/
+*.pth
+*.pth.tar
+
+__pycache__/
+*.pyc
+.DS_Store
+
+eval_sample.png
