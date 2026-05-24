@@ -40,8 +40,18 @@ class CelebAInpaintingDataset(Dataset):
                 if fname.lower().endswith((".jpg", ".jpeg", ".png"))
             ]
         
-        if max_samples is not None:
-            self.image_paths = self.image_paths[:max_samples]
+        if len(self.image_paths) == 0:
+            raise RuntimeError(f"No image files found in: {self.root}")
+
+        # split이 train/test인 경우, 메타 데이터가 없으면 파일 목록을 나눠서 분리
+        if split in ['train', 'test']:
+            if not any(os.path.isdir(os.path.join(self.root, s)) for s in ['train', 'test']):
+                total = len(self.image_paths)
+                split_idx = int(total * 0.8)
+                if split == 'train':
+                    self.image_paths = self.image_paths[:split_idx]
+                else:
+                    self.image_paths = self.image_paths[split_idx:]
 
         if max_samples is not None:
             self.image_paths = self.image_paths[:max_samples]
