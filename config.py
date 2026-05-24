@@ -1,10 +1,10 @@
 class Config:
     # data
     data_root        = './data'
-    image_size       = 256
+    image_size       = 128
     batch_size       = 16
-    num_workers      = 4
-    max_train_samples = 20000  # None이면 전체 사용
+    num_workers      = 0
+    max_train_samples = 5000   # None이면 전체 사용
 
     # model — change conv_type to switch between models
     base_ch    = 64
@@ -12,9 +12,9 @@ class Config:
 
     # train
     lr         = 2e-4
-    num_epochs = 100
+    num_epochs = 20
     save_dir   = './checkpoints'
-    log_every  = 50
+    log_every  = 10
 
     # loss weights
     w_valid     = 1.0
