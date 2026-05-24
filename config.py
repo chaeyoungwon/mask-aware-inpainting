@@ -8,7 +8,7 @@ class Config:
 
     # model — change conv_type to switch between models
     base_ch    = 64
-    conv_type  = 'gated'   # 'vanilla' | 'pconv' | 'gated'
+    conv_type  = 'pconv'   # 'vanilla' | 'pconv' | 'gated'
 
     # train
     lr         = 2e-4
