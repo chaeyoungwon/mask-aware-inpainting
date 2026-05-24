@@ -10,23 +10,38 @@ from datasets.mask_generator import generate_stroke_mask
 
 class CelebAInpaintingDataset(Dataset):
     def __init__(self, root, split="train", image_size=64, max_samples=None):
-        self.root = root
-
-        # root가 ./data 또는 ./data/celeba인 경우 img_align_celeba 경로를 자동 탐색
+        # root가 ./data 또는 ./data/celeba 등일 때 이미지 폴더를 자동 탐색
         candidates = [
             root,
             os.path.join(root, 'celeba'),
             os.path.join(root, 'img_align_celeba'),
             os.path.join(root, 'celeba', 'img_align_celeba'),
         ]
-        self.root = next((p for p in candidates if os.path.isdir(p)), root)
 
-        self.image_paths = [
-            os.path.join(self.root, fname)
-            for fname in os.listdir(self.root)
-            if fname.lower().endswith((".jpg", ".jpeg", ".png"))
-        ]
-        self.image_paths = sorted(self.image_paths)
+        self.root = None
+        self.image_paths = []
+        for path in candidates:
+            if not os.path.isdir(path):
+                continue
+            files = [
+                fname for fname in os.listdir(path)
+                if fname.lower().endswith((".jpg", ".jpeg", ".png"))
+            ]
+            if files:
+                self.root = path
+                self.image_paths = sorted(os.path.join(path, fname) for fname in files)
+                break
+
+        if self.root is None:
+            self.root = root
+            self.image_paths = [
+                os.path.join(root, fname)
+                for fname in os.listdir(root)
+                if fname.lower().endswith((".jpg", ".jpeg", ".png"))
+            ]
+        
+        if max_samples is not None:
+            self.image_paths = self.image_paths[:max_samples]
 
         if max_samples is not None:
             self.image_paths = self.image_paths[:max_samples]
