@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presentation Script TTS</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #1e293b; padding: 30px; }
+  h1 { font-size: 1.3rem; font-weight: 700; color: #1e3a8a; margin-bottom: 6px; }
+  .subtitle { font-size: 0.85rem; color: #64748b; margin-bottom: 24px; }
+
+  .controls {
+    background: white;
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  button {
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  #playBtn  { background: #1e3a8a; color: white; }
+  #playBtn:hover  { background: #1e40af; }
+  #pauseBtn { background: #e2e8f0; color: #334155; }
+  #pauseBtn:hover { background: #cbd5e1; }
+  #stopBtn  { background: #fee2e2; color: #dc2626; }
+  #stopBtn:hover  { background: #fecaca; }
+
+  .slider-row { display: flex; align-items: center; gap: 10px; font-size: 0.83rem; color: #475569; }
+  input[type=range] { width: 130px; accent-color: #1e3a8a; }
+
+  .status {
+    font-size: 0.82rem;
+    color: #64748b;
+    margin-left: auto;
+    background: #f1f5f9;
+    padding: 6px 12px;
+    border-radius: 6px;
+  }
+
+  .section {
+    background: white;
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    cursor: pointer;
+    border-left: 4px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .section:hover { border-left-color: #93c5fd; }
+  .section.active { border-left-color: #1e3a8a; background: #eff6ff; }
+
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #1e3a8a;
+    margin-bottom: 8px;
+  }
+  .section-text {
+    font-size: 0.92rem;
+    line-height: 1.75;
+    color: #334155;
+  }
+  .slide-break {
+    display: inline-block;
+    background: #fef9c3;
+    color: #92400e;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 4px;
+    margin: 0 3px;
+    vertical-align: middle;
+  }
+  .hint { font-size: 0.78rem; color: #94a3b8; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<h1>🎤 Presentation Script — Gated CAE Section</h1>
+<p class="subtitle">Click a section to jump, or press Play All to read through.</p>
+
+<div class="controls">
+  <button id="playBtn" onclick="playAll()">▶ Play All</button>
+  <button id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
+  <button id="stopBtn" onclick="stopAll()">■ Stop</button>
+
+  <div class="slider-row">
+    Speed
+    <input type="range" id="rateSlider" min="0.6" max="1.4" step="0.05" value="0.95"
+      oninput="document.getElementById('rateVal').textContent=this.value+'x'; updateRate()">
+    <span id="rateVal">0.95x</span>
+  </div>
+
+  <div class="slider-row">
+    Pitch
+    <input type="range" id="pitchSlider" min="0.8" max="1.4" step="0.05" value="1.05"
+      oninput="document.getElementById('pitchVal').textContent=this.value; updateRate()">
+    <span id="pitchVal">1.05</span>
+  </div>
+
+  <span class="status" id="statusBox">Idle</span>
+</div>
+
+<div id="sections"></div>
+
+<script>
+const sections = [
+  {
+    label: "Slide 13~15 — PConv Limitations & Gated Intro",
+    text: `While PConv is an improvement, it has three structural limitations worth pointing out.
+First, the binary mask is hard — every location is either fully valid or fully invalid, with no gradation.
+Second, the rule-based mask update means that as depth increases, the mask tends to become all-ones fairly quickly, losing track of where the hole was.
+Third, all channels share the same mask, which doesn't account for the fact that different feature channels may want to treat the same region differently.
+Gated Convolution, proposed by Yu et al. at ICCV 2019, solves this with learnable soft gating.`
+  },
+  {
+    label: "Slide 16~17 — Gated Structure (parallel pathways)",
+    text: `Rather than applying a fixed binary mask, the model learns a separate gating map from the data. The input goes through two parallel pathways — one for the feature map, one for the gating signal.
+The gating signal passes through a sigmoid, producing continuous values between 0 and 1. These are then multiplied element-wise with the features, acting as a per-channel, per-location dynamic mask that the model learns end-to-end.`
+  },
+  {
+    label: "Slide 18~19 — Key Formula: Feature Map",
+    text: `Let's walk through the math.
+The Feature Map is computed as a standard convolution of the learnable filter W-f over input I — nothing unusual here.`
+  },
+  {
+    label: "Slide 20 — Key Formula: Gating Map",
+    text: `The Gating Map uses a separate filter W-g over the same input, followed by a sigmoid. So gating values are always in the range 0 to 1 — they represent how much each spatial location and channel should be activated.`
+  },
+  {
+    label: "Slide 21 — Key Formula: Output",
+    text: `The final output y is the element-wise product of the activated feature map and the gating map. This means the model can selectively suppress features in corrupted regions and amplify them in valid ones — all learned from data, not defined by hand.`
+  },
+  {
+    label: "Slide 22 — Experiment: Config",
+    text: `All three models were trained under identical conditions to ensure a fair comparison. We used CelebA with five thousand training images at 128 by 128, batch size 16, learning rate 2e-4, and 20 epochs.`
+  },
+  {
+    label: "Slide 23 — Experiment: Loss Function",
+    text: `The loss function has three components: Valid Loss, which preserves accuracy in visible regions; Hole Loss, weighted at 6 times to emphasize reconstruction of the missing area; and Perceptual Loss at lambda equals 0.05, computed using intermediate feature maps from a pretrained VGG-16. The higher weight on hole loss is a deliberate design choice — without it, the model tends to ignore the hardest part of the task.`
+  }
+];
+
+// Build UI
+const container = document.getElementById('sections');
+sections.forEach((s, i) => {
+  const div = document.createElement('div');
+  div.className = 'section';
+  div.id = 'sec-' + i;
+  div.innerHTML = `
+    <div class="section-label">${s.label}</div>
+    <div class="section-text">${s.text.replace(/\n/g, '<br>')}</div>
+    <div class="hint">Click to play this section</div>
+  `;
+  div.onclick = () => playSingle(i);
+  container.appendChild(div);
+});
+
+// TTS logic
+const synth = window.speechSynthesis;
+let currentIdx = -1;
+let paused = false;
+
+function getVoice() {
+  const voices = synth.getVoices();
+  return voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('samantha'))
+      || voices.find(v => v.lang === 'en-US')
+      || voices.find(v => v.lang.startsWith('en'))
+      || voices[0];
+}
+
+function makeUtterance(text) {
+  const u = new SpeechSynthesisUtterance(text);
+  u.voice = getVoice();
+  u.rate  = parseFloat(document.getElementById('rateSlider').value);
+  u.pitch = parseFloat(document.getElementById('pitchSlider').value);
+  u.lang  = 'en-US';
+  return u;
+}
+
+function playAll() {
+  stopAll();
+  playFrom(0);
+}
+
+function playFrom(idx) {
+  if (idx >= sections.length) { setStatus('Done ✓'); return; }
+  currentIdx = idx;
+  highlight(idx);
+  setStatus(`Playing ${idx+1}/${sections.length}`);
+  const u = makeUtterance(sections[idx].text);
+  u.onend = () => playFrom(idx + 1);
+  synth.speak(u);
+}
+
+function playSingle(idx) {
+  stopAll();
+  currentIdx = idx;
+  highlight(idx);
+  setStatus(`Playing section ${idx+1}`);
+  const u = makeUtterance(sections[idx].text);
+  u.onend = () => { setStatus('Done ✓'); highlight(-1); };
+  synth.speak(u);
+}
+
+function togglePause() {
+  if (synth.speaking && !synth.paused) {
+    synth.pause(); paused = true; setStatus('Paused');
+    document.getElementById('pauseBtn').textContent = '▶ Resume';
+  } else if (synth.paused) {
+    synth.resume(); paused = false; setStatus('Playing...');
+    document.getElementById('pauseBtn').textContent = '⏸ Pause';
+  }
+}
+
+function stopAll() {
+  synth.cancel();
+  paused = false;
+  currentIdx = -1;
+  highlight(-1);
+  setStatus('Idle');
+  document.getElementById('pauseBtn').textContent = '⏸ Pause';
+}
+
+function updateRate() {
+  // live rate update not possible mid-speech; just updates next utterance
+}
+
+function highlight(idx) {
+  document.querySelectorAll('.section').forEach((el, i) => {
+    el.classList.toggle('active', i === idx);
+  });
+}
+
+function setStatus(msg) {
+  document.getElementById('statusBox').textContent = msg;
+}
+
+// Load voices
+speechSynthesis.onvoiceschanged = () => {};
+</script>
+</body>
+</html>
