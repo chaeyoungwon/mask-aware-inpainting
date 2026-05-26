@@ -14,7 +14,7 @@ Usage
 Output
 ──────
     fixed_testset/
-    ├── 0000_gt.pt       — ground-truth tensor (3, H, W), range [-1, 1]
+    ├── 0000_gt.pt       — ground-truth tensor (3, H, W), range [0, 1]
     ├── 0000_mask.pt     — binary mask tensor  (1, H, W), hole=0 valid=1
     ├── 0000_masked.pt   — gt * mask           (3, H, W)
     ├── 0001_gt.pt

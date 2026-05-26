@@ -14,8 +14,9 @@ Features
 
 Usage
 ─────
-    python evaluate.py checkpoints/gated/best_model.pth
-    python evaluate.py checkpoints/gated/best_model.pth --fixed_testset ./fixed_testset
+    python evaluate.py checkpoints/vanilla/best_model.pth --conv_type vanilla --fixed_testset ./fixed_testset
+    python evaluate.py checkpoints/pconv/best_model.pth   --conv_type pconv   --fixed_testset ./fixed_testset
+    python evaluate.py checkpoints/gated/best_model.pth   --conv_type gated   --fixed_testset ./fixed_testset
 """
 
 import os
@@ -118,8 +119,10 @@ def load_fixed_testset(fixed_testset_dir: str, batch_size: int):
 # ──────────────────────────────────────────────
 #  Main evaluation
 # ──────────────────────────────────────────────
-def evaluate(checkpoint_path: str, fixed_testset_dir: str = None):
+def evaluate(checkpoint_path: str, fixed_testset_dir: str = None, conv_type: str = None):
     cfg = Config()
+    if conv_type is not None:
+        cfg.conv_type = conv_type
 
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -166,8 +169,6 @@ def evaluate(checkpoint_path: str, fixed_testset_dir: str = None):
             b_ssim      = ssim(output, gt)
             b_hole_psnr = hole_psnr(output, gt, mask)
             b_hole_l1   = hole_l1(output, gt, mask)
-            b_ratio     = hole_ratio(mask)
-            bucket      = ratio_bucket(b_ratio)
 
             total['psnr']      += b_psnr
             total['ssim']      += b_ssim
@@ -175,10 +176,16 @@ def evaluate(checkpoint_path: str, fixed_testset_dir: str = None):
             total['hole_l1']   += b_hole_l1
             total['count']     += 1
 
-            bucket_psnr[bucket]      += b_psnr
-            bucket_hole_psnr[bucket] += b_hole_psnr
-            bucket_ssim[bucket]      += b_ssim
-            counts[bucket]           += 1
+            for j in range(output.size(0)):
+                out_j  = output[j:j+1]
+                gt_j   = gt[j:j+1]
+                mask_j = mask[j:j+1]
+                r = 1.0 - mask_j.float().mean().item()
+                bucket = ratio_bucket(r)
+                bucket_psnr[bucket]      += psnr(out_j, gt_j)
+                bucket_hole_psnr[bucket] += hole_psnr(out_j, gt_j, mask_j)
+                bucket_ssim[bucket]      += ssim(out_j, gt_j)
+                counts[bucket]           += 1
 
             if i == 0:
                 out_img = os.path.join(
@@ -250,8 +257,10 @@ if __name__ == '__main__':
         description='Evaluate a trained inpainting model.'
     )
     parser.add_argument('checkpoint', help='Path to best_model.pth')
+    parser.add_argument('--conv_type', choices=['vanilla', 'pconv', 'gated'], required=True,
+                        help='Model type to evaluate')
     parser.add_argument('--fixed_testset', default=None,
                         help='Directory containing pre-saved *_gt.pt / *_mask.pt / *_masked.pt '
                              'files (created by prepare_fixed_testset.py)')
     args = parser.parse_args()
-    evaluate(args.checkpoint, fixed_testset_dir=args.fixed_testset)
+    evaluate(args.checkpoint, fixed_testset_dir=args.fixed_testset, conv_type=args.conv_type)

@@ -39,7 +39,7 @@ class CelebAInpaintingDataset(Dataset):
         return len(self.celeba)
 
     def __getitem__(self, idx):
-        gt, _ = self.celeba[idx]   # ground truth (C, H, W), normalized to [-1, 1]
+        gt, _ = self.celeba[idx]   # ground truth (C, H, W), values in [0, 1]
 
         if self.fixed_masks is not None:
             # Use pre-saved mask for this index (wrap-around if needed)
