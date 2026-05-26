@@ -98,7 +98,7 @@ def train():
     val_loader = get_celeba_loader(
         cfg.data_root, 'valid', cfg.batch_size,
         cfg.image_size, cfg.num_workers,
-        max_samples=500,   # keep validation fast
+        max_samples=1000,   # keep validation fast
     )
 
     # ── Model ──
