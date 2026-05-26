@@ -28,7 +28,7 @@ class CelebAInpaintingDataset(Dataset):
             transforms.ToTensor(),
             transforms.Normalize([0.5] * 3, [0.5] * 3),
         ])
-        celeba = CelebA(root=root, split=split, transform=transform, download=True)
+        celeba = CelebA(root=root, split=split, transform=transform, download=False)
         if max_samples is not None:
             celeba = Subset(celeba, range(min(max_samples, len(celeba))))
         self.celeba      = celeba
