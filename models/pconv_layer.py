@@ -60,4 +60,5 @@ class PartialConv2d(nn.Module):
             output = output * mask_ratio
 
         output = output * updated_mask
+        
         return output, updated_mask
