@@ -1,9 +1,55 @@
 import numpy as np
+import os
 import torch
 from torchvision import transforms
 from torchvision.datasets import CelebA
+from PIL import Image
 from torch.utils.data import Dataset, DataLoader, Subset
 from datasets.mask_generator import generate_stroke_mask
+
+
+class CelebAFolderDataset(Dataset):
+    split_ids = {'train': '0', 'valid': '1', 'test': '2', 'all': None}
+
+    def __init__(self, root, split, transform):
+        self.base_dir = self._find_base_dir(root)
+        self.image_dir = os.path.join(self.base_dir, 'img_align_celeba')
+        partition_file = os.path.join(self.base_dir, 'list_eval_partition.txt')
+        split_id = self.split_ids[split]
+        self.transform = transform
+
+        with open(partition_file) as f:
+            self.filenames = [
+                name for name, part in (line.split() for line in f)
+                if split_id is None or part == split_id
+            ]
+
+    @staticmethod
+    def _find_base_dir(root):
+        candidates = [
+            os.path.join(root, 'celeba'),
+            root,
+        ]
+        for candidate in candidates:
+            if (
+                os.path.isdir(os.path.join(candidate, 'img_align_celeba'))
+                and os.path.isfile(os.path.join(candidate, 'list_eval_partition.txt'))
+            ):
+                return candidate
+        raise RuntimeError(
+            'CelebA files not found. Expected img_align_celeba/ and '
+            f'list_eval_partition.txt under one of: {candidates}'
+        )
+
+    def __len__(self):
+        return len(self.filenames)
+
+    def __getitem__(self, idx):
+        path = os.path.join(self.image_dir, self.filenames[idx])
+        image = Image.open(path).convert('RGB')
+        if self.transform is not None:
+            image = self.transform(image)
+        return image, 0
 
 
 class CelebAInpaintingDataset(Dataset):
@@ -28,7 +74,12 @@ class CelebAInpaintingDataset(Dataset):
             transforms.ToTensor(),
             transforms.Normalize([0.5] * 3, [0.5] * 3),
         ])
-        celeba = CelebA(root=root, split=split, transform=transform, download=False)
+        try:
+            celeba = CelebA(root=root, split=split, transform=transform, download=False)
+        except RuntimeError as exc:
+            if 'Dataset not found or corrupted' not in str(exc):
+                raise
+            celeba = CelebAFolderDataset(root=root, split=split, transform=transform)
         if max_samples is not None:
             celeba = Subset(celeba, range(min(max_samples, len(celeba))))
         self.celeba      = celeba
