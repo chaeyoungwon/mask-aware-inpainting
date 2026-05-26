@@ -1,19 +1,24 @@
 """
 prepare_fixed_testset.py
 ────────────────────────
-Pre-generate a fixed set of masks for the test split and save them as a
-numpy array.  Run this ONCE before evaluating any model so that all three
-models (Vanilla / PConv / Gated) are compared under identical mask conditions.
+Pre-generate a fixed test set (gt / mask / masked) from the CelebA test split
+and save each sample as individual .pt files.  Run this ONCE before evaluating
+any model so all three models (Vanilla / PConv / Gated) see identical images
+and masks.
 
 Usage
 ─────
-    python prepare_fixed_testset.py                     # 500 masks, default path
-    python prepare_fixed_testset.py --n 1000 --out ./data/fixed_test_masks.npy
+    python prepare_fixed_testset.py
+    python prepare_fixed_testset.py --n 1000 --out ./fixed_testset --seed 42
 
 Output
 ──────
-    ./data/fixed_test_masks.npy   — float32 array, shape (N, 1, 128, 128)
-                                    hole=0, valid=1  (same convention as mask_generator)
+    fixed_testset/
+    ├── 0000_gt.pt       — ground-truth tensor (3, H, W), range [-1, 1]
+    ├── 0000_mask.pt     — binary mask tensor  (1, H, W), hole=0 valid=1
+    ├── 0000_masked.pt   — gt * mask           (3, H, W)
+    ├── 0001_gt.pt
+    ...
 """
 
 import argparse
@@ -24,48 +29,55 @@ import numpy as np
 import torch
 
 from config import Config
-from datasets.mask_generator import generate_stroke_mask
+from datasets.celeba_dataset import CelebAInpaintingDataset
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--n',   type=int, default=500,
-                        help='Number of masks to generate (default: 500)')
-    parser.add_argument('--out', type=str, default='',
-                        help='Output .npy path (default: <data_root>/fixed_test_masks.npy)')
-    parser.add_argument('--seed', type=int, default=0,
-                        help='RNG seed for reproducibility (default: 0)')
+    parser.add_argument('--n',    type=int, default=500,
+                        help='Number of samples to save (default: 500)')
+    parser.add_argument('--out',  type=str, default='./fixed_testset',
+                        help='Output directory (default: ./fixed_testset)')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='RNG seed for reproducibility (default: 42)')
     args = parser.parse_args()
 
     cfg = Config()
 
-    out_path = args.out or os.path.join(cfg.data_root, 'fixed_test_masks.npy')
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-
-    # Fix seed so the same masks are always generated
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    print(f"Generating {args.n} fixed masks  (image_size={cfg.image_size}, seed={args.seed}) ...")
-    masks = []
-    for i in range(args.n):
-        mask = generate_stroke_mask(cfg.image_size, cfg.image_size)  # (1, H, W) tensor
-        masks.append(mask.numpy())
+    os.makedirs(args.out, exist_ok=True)
+
+    dataset = CelebAInpaintingDataset(
+        root=cfg.data_root,
+        split='test',
+        image_size=cfg.image_size,
+        max_samples=args.n,
+    )
+
+    n = len(dataset)
+    print(f"Saving {n} samples to {args.out}/  (seed={args.seed}) ...")
+
+    hole_ratios = []
+    for i in range(n):
+        masked, mask, gt = dataset[i]
+        idx = f"{i:04d}"
+        torch.save(gt,     os.path.join(args.out, f"{idx}_gt.pt"))
+        torch.save(mask,   os.path.join(args.out, f"{idx}_mask.pt"))
+        torch.save(masked, os.path.join(args.out, f"{idx}_masked.pt"))
+        hole_ratios.append((1.0 - mask.mean()).item())
+
         if (i + 1) % 100 == 0:
-            print(f"  {i+1}/{args.n}")
+            print(f"  {i+1}/{n}")
 
-    arr = np.stack(masks, axis=0)   # (N, 1, H, W)
-    np.save(out_path, arr)
-
-    hole_ratios = 1.0 - arr.mean(axis=(1, 2, 3))
-    print(f"\nSaved → {out_path}")
-    print(f"Shape : {arr.shape}   dtype: {arr.dtype}")
-    print(f"Hole ratio — mean: {hole_ratios.mean():.3f} | "
-          f"min: {hole_ratios.min():.3f} | max: {hole_ratios.max():.3f}")
-    print(f"  small  (<0.2)  : {(hole_ratios < 0.2).sum()} masks")
-    print(f"  medium (0.2–0.4): {((hole_ratios >= 0.2) & (hole_ratios < 0.4)).sum()} masks")
-    print(f"  large  (>=0.4) : {(hole_ratios >= 0.4).sum()} masks")
+    arr = np.array(hole_ratios)
+    print(f"\nSaved {n} samples → {args.out}/")
+    print(f"Hole ratio — mean: {arr.mean():.3f} | min: {arr.min():.3f} | max: {arr.max():.3f}")
+    print(f"  small  (< 0.3)      : {(arr < 0.3).sum()} samples")
+    print(f"  medium (0.3 – 0.5)  : {((arr >= 0.3) & (arr < 0.5)).sum()} samples")
+    print(f"  large  (0.5 – 0.7)  : {((arr >= 0.5) & (arr < 0.7)).sum()} samples")
 
 
 if __name__ == '__main__':

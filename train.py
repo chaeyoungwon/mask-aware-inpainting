@@ -121,7 +121,7 @@ def train():
     best_psnr  = -float('inf')
 
     # ── CSV history log ──
-    csv_path = os.path.join(save_dir, 'history.csv')
+    csv_path = os.path.join(save_dir, f'training_history_{cfg.conv_type}.csv')
     with open(csv_path, 'w', newline='') as f:
         csv.writer(f).writerow(
             ['epoch', 'train_loss', 'val_loss', 'val_psnr', 'val_ssim', 'lr']
